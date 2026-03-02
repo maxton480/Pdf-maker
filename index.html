@@ -1,40 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bulk ZIP to PDF</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FAST Bulk ZIP → PDF</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body{
-  background:#111;
+  background:#0f0f0f;
   color:white;
   font-family:Arial;
   text-align:center;
   padding:20px;
 }
 .box{
-  background:#1e1e1e;
+  background:#1c1c1c;
   padding:20px;
-  border-radius:10px;
+  border-radius:12px;
   max-width:420px;
   margin:auto;
 }
 button{
-  margin-top:15px;
   padding:12px 20px;
   background:#00c853;
   border:none;
   color:white;
   font-size:16px;
-  border-radius:6px;
-}
-#status{
+  border-radius:8px;
   margin-top:15px;
-  font-size:14px;
 }
 </style>
 </head>
@@ -42,81 +37,77 @@ button{
 <body>
 
 <div class="box">
-<h2>📦 Bulk ZIP → PDF</h2>
+<h2>⚡ FAST Bulk ZIP → PDF</h2>
 
-<input type="file" id="zipFiles" accept=".zip" multiple>
+<input type="file" id="files" multiple accept=".zip"><br>
+<button onclick="start()">Start Fast Convert</button>
 
-<br>
-<button onclick="startBulk()">Convert All</button>
-
-<div id="status"></div>
+<p id="status"></p>
 </div>
 
 <script>
+const { jsPDF } = window.jspdf;
 
-async function startBulk(){
+async function start(){
 
-  const files = document.getElementById("zipFiles").files;
+  const files = document.getElementById("files").files;
   const status = document.getElementById("status");
 
-  if(files.length === 0){
-    alert("ZIP files select karo");
+  if(!files.length){
+    alert("ZIP select karo");
     return;
   }
 
   for(let f=0; f<files.length; f++){
-
-    const file = files[f];
-    status.innerText = `Processing ${file.name} (${f+1}/${files.length})`;
-
-    await convertSingleZip(file);
+    status.innerText=`Processing ${files[f].name}`;
+    await fastConvert(files[f], status);
   }
 
-  status.innerText = "✅ All PDFs created!";
+  status.innerText="✅ All Done!";
 }
 
-async function convertSingleZip(file){
+async function fastConvert(file,status){
 
   const zip = await JSZip.loadAsync(file);
-  const images = [];
 
-  zip.forEach((path, entry)=>{
+  let images=[];
+
+  zip.forEach((path,entry)=>{
     if(!entry.dir && /\.(jpg|jpeg|png|webp)$/i.test(path)){
       images.push(entry);
     }
   });
 
-  // numeric sort (important for comics)
   images.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
 
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF();
+  const pdf = new jsPDF({
+    compress:true
+  });
 
   for(let i=0;i<images.length;i++){
 
-    const blob = await images[i].async("blob");
+    status.innerText=`${file.name} → ${i+1}/${images.length}`;
+
+    const uint8 = await images[i].async("uint8array");
+
+    const blob = new Blob([uint8]);
     const url = URL.createObjectURL(blob);
 
-    const img = await new Promise(resolve=>{
-      const image = new Image();
-      image.onload=()=>resolve(image);
-      image.src=url;
-    });
+    const img = await createImageBitmap(blob); // FAST decoding
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = (img.height * pageWidth)/img.width;
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = img.height * pageW / img.width;
 
     if(i>0) pdf.addPage();
 
-    pdf.addImage(img,"JPEG",0,0,pageWidth,pageHeight);
+    pdf.addImage(url,"JPEG",0,0,pageW,pageH,undefined,"FAST");
+
+    URL.revokeObjectURL(url);
   }
 
-  // same name as ZIP
-  const pdfName = file.name.replace(".zip",".pdf");
-  pdf.save(pdfName);
+  pdf.save(file.name.replace(".zip",".pdf"));
 }
-
 </script>
 
 </body>
-</html>
+</html>o
