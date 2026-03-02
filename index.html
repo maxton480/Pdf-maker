@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulk ZIP to PDF</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+  background:#111;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  padding:20px;
+}
+.box{
+  background:#1e1e1e;
+  padding:20px;
+  border-radius:10px;
+  max-width:420px;
+  margin:auto;
+}
+button{
+  margin-top:15px;
+  padding:12px 20px;
+  background:#00c853;
+  border:none;
+  color:white;
+  font-size:16px;
+  border-radius:6px;
+}
+#status{
+  margin-top:15px;
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+<h2>📦 Bulk ZIP → PDF</h2>
+
+<input type="file" id="zipFiles" accept=".zip" multiple>
+
+<br>
+<button onclick="startBulk()">Convert All</button>
+
+<div id="status"></div>
+</div>
+
+<script>
+
+async function startBulk(){
+
+  const files = document.getElementById("zipFiles").files;
+  const status = document.getElementById("status");
+
+  if(files.length === 0){
+    alert("ZIP files select karo");
+    return;
+  }
+
+  for(let f=0; f<files.length; f++){
+
+    const file = files[f];
+    status.innerText = `Processing ${file.name} (${f+1}/${files.length})`;
+
+    await convertSingleZip(file);
+  }
+
+  status.innerText = "✅ All PDFs created!";
+}
+
+async function convertSingleZip(file){
+
+  const zip = await JSZip.loadAsync(file);
+  const images = [];
+
+  zip.forEach((path, entry)=>{
+    if(!entry.dir && /\.(jpg|jpeg|png|webp)$/i.test(path)){
+      images.push(entry);
+    }
+  });
+
+  // numeric sort (important for comics)
+  images.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+
+  for(let i=0;i<images.length;i++){
+
+    const blob = await images[i].async("blob");
+    const url = URL.createObjectURL(blob);
+
+    const img = await new Promise(resolve=>{
+      const image = new Image();
+      image.onload=()=>resolve(image);
+      image.src=url;
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = (img.height * pageWidth)/img.width;
+
+    if(i>0) pdf.addPage();
+
+    pdf.addImage(img,"JPEG",0,0,pageWidth,pageHeight);
+  }
+
+  // same name as ZIP
+  const pdfName = file.name.replace(".zip",".pdf");
+  pdf.save(pdfName);
+}
+
+</script>
+
+</body>
+</html>
